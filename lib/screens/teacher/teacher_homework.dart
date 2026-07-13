@@ -114,7 +114,7 @@ class _TeacherHomeworkScreenState extends State<TeacherHomeworkScreen> {
                   )
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
                     itemCount: assignments.length,
                     itemBuilder: (context, i) => _assignmentCard(
                         context, assignments[i] as Map<String, dynamic>),
@@ -125,88 +125,115 @@ class _TeacherHomeworkScreenState extends State<TeacherHomeworkScreen> {
     );
   }
 
+  /// One assignment as a floating card: subject-tinted icon badge, bold
+  /// title with its StatusChip, then the due-date/marks meta row and a
+  /// "handed in" counter pill (the tap target's "why open me").
   Widget _assignmentCard(BuildContext context, Map<String, dynamic> a) {
     final scheme = Theme.of(context).colorScheme;
+    final subject = (a['subject'] as String?) ?? '';
 
     // `class` is a perfectly fine JSON key, even though it is a reserved
     // word in Dart — map access with a string is unaffected.
     final target = [
-      if (a['subject'] != null) '${a['subject']}',
-      '${a['class'] ?? ''} — ${a['section'] ?? 'All sections'}',
+      if (a['class'] != null) '${a['class']}',
+      '${a['section'] ?? 'All sections'}',
+      if (subject.isNotEmpty) subject,
     ].join(' · ');
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      clipBehavior: Clip.antiAlias, // keeps the InkWell ripple rounded
-      child: InkWell(
-        onTap: () => _openSubmissions(a),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      (a['title'] as String?) ?? 'Assignment',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 15),
-                    ),
-                  ),
-                  StatusChip((a['status'] as String?) ?? 'open'),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                target,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(Icons.event, size: 16, color: scheme.onSurfaceVariant),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${a['due_date'] ?? 'No due date'}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  if (a['max_marks'] != null) ...[
-                    const SizedBox(width: 12),
-                    Icon(Icons.grade_outlined,
-                        size: 16, color: scheme.onSurfaceVariant),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${a['max_marks']} marks',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  const Spacer(),
-                  // Submission-count badge — the tap target's "why open me".
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${a['submissions_count'] ?? 0} submitted',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: scheme.onPrimaryContainer,
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      onTap: () => _openSubmissions(a),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconBadge(
+            Icons.menu_book_rounded,
+            // Same colour as the subject gets everywhere else in the app.
+            color: colorFor(
+                subject.isEmpty ? (a['title'] as String?) ?? 'Assignment' : subject),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        (a['title'] as String?) ?? 'Assignment',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    StatusChip((a['status'] as String?) ?? 'open'),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  target,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF6B7686),
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.event,
+                        size: 15, color: Color(0xFF8A94A6)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${a['due_date'] ?? 'No due date'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B7686),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (a['max_marks'] != null) ...[
+                      const SizedBox(width: 12),
+                      const Icon(Icons.grade_outlined,
+                          size: 15, color: Color(0xFF8A94A6)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${a['max_marks']} marks',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7686),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    // Submission-count pill in the brand tint.
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withValues(alpha: .1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${a['submissions_count'] ?? 0} handed in',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -219,6 +246,8 @@ class _TeacherHomeworkScreenState extends State<TeacherHomeworkScreen> {
 /// It loads its dropdown options from `/teacher/assignments/meta` first
 /// (classes with their sections, plus subjects) — the same ApiFutureView
 /// pattern as every read-only screen, just with a form in the builder.
+/// The fields are grouped into two floating cards ("Basics" for the
+/// what/who, "Details" for the extras) so the form scans in two beats.
 class _CreateAssignmentScreen extends StatefulWidget {
   const _CreateAssignmentScreen();
 
@@ -363,142 +392,167 @@ class _CreateAssignmentScreenState extends State<_CreateAssignmentScreen> {
           final sections = _sectionsForClass(classes);
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             children: [
-              TextField(
-                controller: _title,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  prefixIcon: Icon(Icons.title_rounded),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              DropdownButtonFormField<int>(
-                initialValue: _classId,
-                decoration: const InputDecoration(
-                  labelText: 'Class',
-                  prefixIcon: Icon(Icons.school_rounded),
-                ),
-                hint: const Text('Pick a class'),
-                items: [
-                  for (final c in classes)
-                    DropdownMenuItem(
-                      value:
-                          ((c as Map<String, dynamic>)['id'] as num?)?.toInt(),
-                      child: Text((c['name'] as String?) ?? 'Class'),
+              // ---- what & who ----
+              const SectionHeader('Basics'),
+              SoftCard(
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _title,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        prefixIcon: Icon(Icons.title_rounded),
+                      ),
                     ),
-                ],
-                onChanged: (id) => setState(() {
-                  _classId = id;
-                  // A different class has different sections — reset the
-                  // pick so a stale "Section C" can't be submitted.
-                  _section = _allSections;
-                }),
-              ),
-              const SizedBox(height: 14),
+                    const SizedBox(height: 14),
 
-              DropdownButtonFormField<String>(
-                // Changing the key forces Flutter to rebuild this field
-                // from scratch when the class changes, discarding the old
-                // internal selection.
-                key: ValueKey('sections-$_classId'),
-                initialValue: _section,
-                decoration: const InputDecoration(
-                  labelText: 'Section',
-                  prefixIcon: Icon(Icons.grid_view_rounded),
-                ),
-                items: [
-                  const DropdownMenuItem(
-                    value: _allSections,
-                    child: Text('All sections'),
-                  ),
-                  for (final s in sections)
-                    DropdownMenuItem(value: s, child: Text('Section $s')),
-                ],
-                // Disabled (greyed out) until a class is picked.
-                onChanged: _classId == null
-                    ? null
-                    : (v) => setState(() => _section = v ?? _allSections),
-              ),
-              const SizedBox(height: 14),
-
-              DropdownButtonFormField<int>(
-                initialValue: _subjectId,
-                decoration: const InputDecoration(
-                  labelText: 'Subject',
-                  prefixIcon: Icon(Icons.menu_book_rounded),
-                ),
-                hint: const Text('Pick a subject'),
-                items: [
-                  for (final s in subjects)
-                    DropdownMenuItem(
-                      value:
-                          ((s as Map<String, dynamic>)['id'] as num?)?.toInt(),
-                      child: Text((s['name'] as String?) ?? 'Subject'),
-                    ),
-                ],
-                onChanged: (id) => setState(() => _subjectId = id),
-              ),
-              const SizedBox(height: 14),
-
-              TextField(
-                controller: _instructions,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Instructions (optional)',
-                  alignLabelWithHint: true, // label sits at the top-left
-                  prefixIcon: Icon(Icons.notes_rounded),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // Due date: a tappable display, not a text field — dates
-              // are picked, never typed.
-              InkWell(
-                onTap: _pickDueDate,
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: 'Due date (optional)',
-                    prefixIcon: const Icon(Icons.event),
-                    suffixIcon: _dueDate == null
-                        ? const Icon(Icons.edit_calendar_rounded)
-                        : IconButton(
-                            tooltip: 'Clear due date',
-                            icon: const Icon(Icons.close),
-                            onPressed: () => setState(() => _dueDate = null),
+                    DropdownButtonFormField<int>(
+                      initialValue: _classId,
+                      decoration: const InputDecoration(
+                        labelText: 'Class',
+                        prefixIcon: Icon(Icons.school_rounded),
+                      ),
+                      hint: const Text('Pick a class'),
+                      items: [
+                        for (final c in classes)
+                          DropdownMenuItem(
+                            value: ((c as Map<String, dynamic>)['id'] as num?)
+                                ?.toInt(),
+                            child: Text((c['name'] as String?) ?? 'Class'),
                           ),
-                  ),
-                  child: Text(_dueDate == null ? 'No due date' : _ymd(_dueDate!)),
+                      ],
+                      onChanged: (id) => setState(() {
+                        _classId = id;
+                        // A different class has different sections — reset
+                        // the pick so a stale "Section C" can't be
+                        // submitted.
+                        _section = _allSections;
+                      }),
+                    ),
+                    const SizedBox(height: 14),
+
+                    DropdownButtonFormField<String>(
+                      // Changing the key forces Flutter to rebuild this
+                      // field from scratch when the class changes,
+                      // discarding the old internal selection.
+                      key: ValueKey('sections-$_classId'),
+                      initialValue: _section,
+                      decoration: const InputDecoration(
+                        labelText: 'Section',
+                        prefixIcon: Icon(Icons.grid_view_rounded),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: _allSections,
+                          child: Text('All sections'),
+                        ),
+                        for (final s in sections)
+                          DropdownMenuItem(value: s, child: Text('Section $s')),
+                      ],
+                      // Disabled (greyed out) until a class is picked.
+                      onChanged: _classId == null
+                          ? null
+                          : (v) => setState(() => _section = v ?? _allSections),
+                    ),
+                    const SizedBox(height: 14),
+
+                    DropdownButtonFormField<int>(
+                      initialValue: _subjectId,
+                      decoration: const InputDecoration(
+                        labelText: 'Subject',
+                        prefixIcon: Icon(Icons.menu_book_rounded),
+                      ),
+                      hint: const Text('Pick a subject'),
+                      items: [
+                        for (final s in subjects)
+                          DropdownMenuItem(
+                            value: ((s as Map<String, dynamic>)['id'] as num?)
+                                ?.toInt(),
+                            child: Text((s['name'] as String?) ?? 'Subject'),
+                          ),
+                      ],
+                      onChanged: (id) => setState(() => _subjectId = id),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 14),
 
-              TextField(
-                controller: _maxMarks,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Max marks (optional)',
-                  prefixIcon: Icon(Icons.grade_outlined),
+              // ---- the extras ----
+              const SectionHeader('Details'),
+              SoftCard(
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _instructions,
+                      maxLines: 4,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'Instructions (optional)',
+                        alignLabelWithHint: true, // label sits at the top-left
+                        prefixIcon: Icon(Icons.notes_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Due date: a tappable display, not a text field —
+                    // dates are picked, never typed.
+                    InkWell(
+                      onTap: _pickDueDate,
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Due date (optional)',
+                          prefixIcon: const Icon(Icons.event),
+                          suffixIcon: _dueDate == null
+                              ? const Icon(Icons.edit_calendar_rounded)
+                              : IconButton(
+                                  tooltip: 'Clear due date',
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () =>
+                                      setState(() => _dueDate = null),
+                                ),
+                        ),
+                        child: Text(
+                            _dueDate == null ? 'No due date' : _ymd(_dueDate!)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    TextField(
+                      controller: _maxMarks,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Max marks (optional)',
+                        prefixIcon: Icon(Icons.grade_outlined),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           );
         },
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: FilledButton(
-          onPressed: _saving ? null : _submit,
-          child: _saving
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                )
-              : const Text('Create assignment'),
+      // Same always-visible white save bar as the attendance register.
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: softShadow(context),
+        ),
+        child: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          child: FilledButton(
+            onPressed: _saving ? null : _submit,
+            child: _saving
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                : const Text('Create assignment'),
+          ),
         ),
       ),
     );
@@ -674,25 +728,51 @@ class _SubmissionsScreenState extends State<_SubmissionsScreen> {
         builder: (context, data) {
           final assignment = data['assignment'] as Map<String, dynamic>? ?? {};
           final submissions = data['submissions'] as List<dynamic>? ?? [];
-          final scheme = Theme.of(context).colorScheme;
+          final subject = (assignment['subject'] as String?) ?? '';
 
           return RefreshIndicator(
             onRefresh: () async => setState(() => _future = _load()),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               children: [
-                // What are we grading? A small reminder header.
-                Card(
-                  child: ListTile(
-                    leading: Icon(Icons.menu_book_rounded, color: scheme.primary),
-                    title: Text(
-                      (assignment['title'] as String?) ?? 'Assignment',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    subtitle: Text(assignment['max_marks'] == null
-                        ? 'No maximum marks set'
-                        : 'Out of ${assignment['max_marks']} marks'),
+                // What are we grading? A small reminder card.
+                SoftCard(
+                  child: Row(
+                    children: [
+                      IconBadge(
+                        Icons.menu_book_rounded,
+                        color: colorFor(subject.isEmpty
+                            ? (assignment['title'] as String?) ?? 'Assignment'
+                            : subject),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              (assignment['title'] as String?) ?? 'Assignment',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              assignment['max_marks'] == null
+                                  ? 'No maximum marks set'
+                                  : 'Out of ${assignment['max_marks']} marks',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7686),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 SectionHeader('Submissions (${submissions.length})'),
@@ -712,67 +792,113 @@ class _SubmissionsScreenState extends State<_SubmissionsScreen> {
     );
   }
 
+  /// One submission: student + status up top, the handed-in text in a
+  /// grey inset box, then the big marks (once graded) beside the Grade
+  /// button.
   Widget _submissionCard(BuildContext context, Map<String, dynamic> s) {
-    final scheme = Theme.of(context).colorScheme;
     final content = s['content'] as String?;
     final feedback = s['feedback'] as String?;
     final graded = s['marks'] != null;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    (s['student'] as String?) ?? 'Student',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  (s['student'] as String?) ?? 'Student',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
                   ),
                 ),
-                StatusChip((s['status'] as String?) ?? 'submitted'),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Roll ${s['roll_number'] ?? '—'} · submitted ${s['submitted_at'] ?? '—'}',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-            if (content != null && content.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(content),
-            ],
-            if (graded) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Marks: ${s['marks']}${_maxMarks == null ? '' : ' / $_maxMarks'}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
-              if (feedback != null && feedback.isNotEmpty)
-                Text(
-                  feedback,
-                  style: TextStyle(
-                    fontStyle: FontStyle.italic,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
+              const SizedBox(width: 8),
+              StatusChip((s['status'] as String?) ?? 'submitted'),
             ],
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
+          ),
+          const SizedBox(height: 3),
+          Text(
+            'Roll ${s['roll_number'] ?? '—'} · submitted ${s['submitted_at'] ?? '—'}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6B7686),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (content != null && content.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4F6F9), // grey-50 inset
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(content),
+            ),
+          ],
+          if (graded && feedback != null && feedback.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              feedback,
+              style: const TextStyle(
+                fontStyle: FontStyle.italic,
+                fontSize: 12.5,
+                color: Color(0xFF6B7686),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                // Big marks readout once graded ("18 / 20"); empty box
+                // keeps the Grade button pinned right either way.
+                child: graded
+                    ? Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '${s['marks']}',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (_maxMarks != null)
+                              TextSpan(
+                                text: ' / $_maxMarks',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF6B7686),
+                                ),
+                              ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              FilledButton.tonalIcon(
+                // The global FilledButton theme is sized for full-width
+                // bars — shrink this one back to an inline action.
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 42),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
                 onPressed: () => _openGradeDialog(s),
                 icon: const Icon(Icons.grade_outlined, size: 18),
                 label: Text(graded ? 'Edit grade' : 'Grade'),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

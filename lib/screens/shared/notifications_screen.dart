@@ -119,19 +119,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                     ],
                   )
-                : ListView.builder(
+                // Notifications are short uniform rows, so the whole
+                // inbox lives in ONE grouped SoftCard with hairline
+                // dividers — not a stack of separate cards.
+                : ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    itemCount: rows.length,
-                    itemBuilder: (context, i) {
-                      final row = rows[i];
-                      return _NotificationTile(
-                        row: row,
-                        onTap: row['is_read'] == true
-                            ? null // read rows aren't tappable
-                            : () => _markRead((row['id'] as num?)?.toInt() ?? 0),
-                      );
-                    },
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    children: [
+                      SoftCard(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < rows.length; i++) ...[
+                              _NotificationTile(
+                                row: rows[i],
+                                onTap: rows[i]['is_read'] == true
+                                    ? null // read rows aren't tappable
+                                    : () => _markRead(
+                                        (rows[i]['id'] as num?)?.toInt() ?? 0),
+                              ),
+                              if (i != rows.length - 1)
+                                const Divider(
+                                    height: 1, indent: 72, endIndent: 16),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
           );
         },
@@ -140,9 +154,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
-/// One notification row. Unread rows get a soft primary tint, bold
-/// title and a dot on the right — the classic "inbox" language every
-/// user already knows how to read.
+/// One notification row inside the grouped card. Unread rows get a
+/// faint primary wash, a heavier title and a primary dot right after
+/// it — the classic "inbox" language every user already knows.
 class _NotificationTile extends StatelessWidget {
   const _NotificationTile({required this.row, required this.onTap});
 
@@ -168,60 +182,62 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
+    final type = (row['type'] as String?) ?? '';
     final isRead = row['is_read'] == true;
     final body = (row['body'] as String?) ?? '';
     final createdAt = (row['created_at'] as String?) ?? '';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      // The tint is the loudest unread signal: a see-through wash of
-      // the theme's primaryContainer over the normal card colour.
-      color: isRead ? null : scheme.primaryContainer.withValues(alpha: .35),
-      child: ListTile(
-        onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          child: Icon(
-            _iconFor((row['type'] as String?) ?? ''),
-            size: 20,
-            color: scheme.onPrimaryContainer,
-          ),
-        ),
-        title: Text(
-          (row['title'] as String?) ?? 'Notification',
-          style: TextStyle(
-            // Unread = heavy, read = normal — just like an email inbox.
-            fontWeight: isRead ? FontWeight.w500 : FontWeight.w800,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (body.isNotEmpty) Text(body),
-            if (createdAt.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  createdAt, // "YYYY-MM-DD HH:MM" straight from the API
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
+    return ListTile(
+      onTap: onTap,
+      // The faint tint is the loudest unread signal — a 5% wash of the
+      // brand colour behind the row inside the group.
+      tileColor: isRead ? null : scheme.primary.withValues(alpha: .05),
+      // The badge colour is stable per TYPE, so all fee alerts share a
+      // colour, all homework alerts share another — same trick the
+      // subject colours use everywhere else.
+      leading: IconBadge(_iconFor(type), color: colorFor(type)),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              (row['title'] as String?) ?? 'Notification',
+              style: TextStyle(
+                // Unread = heavy, read = normal — just like an inbox.
+                fontWeight: isRead ? FontWeight.w700 : FontWeight.w800,
               ),
+            ),
+          ),
+          if (!isRead) ...[
+            const SizedBox(width: 6),
+            // The unread dot, suffixed right after the title.
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
           ],
-        ),
-        trailing: isRead
-            ? null
-            : Container(
-                // The unread dot.
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: scheme.primary,
-                  shape: BoxShape.circle,
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (body.isNotEmpty) Text(body),
+          if (createdAt.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                createdAt, // "YYYY-MM-DD HH:MM" straight from the API
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF8A94A6),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
+            ),
+        ],
       ),
     );
   }

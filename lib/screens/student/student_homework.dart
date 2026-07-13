@@ -48,6 +48,10 @@ class _StudentHomeworkScreenState extends State<StudentHomeworkScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (_) => _HomeworkDetailSheet(
         homework: homework,
         // After a successful submit the LIST is stale (the card still
@@ -78,7 +82,7 @@ class _StudentHomeworkScreenState extends State<StudentHomeworkScreen> {
             onRefresh: () async => setState(() => _future = _load()),
             child: ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               itemCount: homework.length,
               itemBuilder: (context, i) =>
                   _homeworkCard(context, homework[i] as Map<String, dynamic>),
@@ -89,39 +93,80 @@ class _StudentHomeworkScreenState extends State<StudentHomeworkScreen> {
     );
   }
 
+  /// One assignment as a SoftCard: subject-coloured badge on the left,
+  /// title + meta in the middle, the submission's status on the right.
   Widget _homeworkCard(BuildContext context, Map<String, dynamic> hw) {
-    final scheme = Theme.of(context).colorScheme;
     final submission = hw['my_submission'] as Map<String, dynamic>?;
+    final subject = (hw['subject'] as String?) ?? '';
+    final tint = colorFor(subject.isEmpty ? 'Homework' : subject);
 
     // "Overdue" only matters if nothing was handed in — a submitted
     // assignment past its due date is the teacher's problem, not ours.
     final missedDeadline = hw['is_overdue'] == true && submission == null;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        onTap: () => _openDetail(hw),
-        title: Text(
-          (hw['title'] as String?) ?? 'Homework',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${hw['subject'] ?? ''} · ${hw['teacher'] ?? ''}'),
-            Text(
-              'Due ${hw['due_date'] ?? '-'}',
-              style: TextStyle(
-                color: missedDeadline ? _dangerRed : scheme.onSurfaceVariant,
-                fontWeight: missedDeadline ? FontWeight.w700 : null,
-              ),
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      onTap: () => _openDetail(hw),
+      child: Row(
+        children: [
+          IconBadge(Icons.menu_book_rounded, color: tint),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (hw['title'] as String?) ?? 'Homework',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${hw['subject'] ?? ''} · ${hw['teacher'] ?? ''}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7686),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Due date with a tiny calendar glyph — turns red and
+                // bold once the deadline is missed.
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_rounded,
+                      size: 13,
+                      color: missedDeadline
+                          ? _dangerRed
+                          : const Color(0xFF8A94A6),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Due ${hw['due_date'] ?? '-'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: missedDeadline
+                            ? _dangerRed
+                            : const Color(0xFF6B7686),
+                        fontWeight: missedDeadline
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        isThreeLine: true,
-        // The chip shows the SUBMISSION's status — 'pending' until the
-        // student hands something in.
-        trailing: StatusChip((submission?['status'] as String?) ?? 'pending'),
+          ),
+          const SizedBox(width: 10),
+          // The chip shows the SUBMISSION's status — 'pending' until the
+          // student hands something in.
+          StatusChip((submission?['status'] as String?) ?? 'pending'),
+        ],
       ),
     );
   }
@@ -233,11 +278,24 @@ class _HomeworkDetailSheetState extends State<_HomeworkDetailSheet> {
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min, // hug content, don't fill screen
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // The drag handle every bottom sheet in the app starts with.
+            Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+
             Text(
               (hw['title'] as String?) ?? 'Homework',
               style: Theme.of(context)
@@ -248,9 +306,13 @@ class _HomeworkDetailSheetState extends State<_HomeworkDetailSheet> {
             const SizedBox(height: 4),
             Text(
               '${hw['subject'] ?? ''} · ${hw['teacher'] ?? ''} · ${hw['class'] ?? ''}',
-              style: TextStyle(color: scheme.onSurfaceVariant),
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6B7686),
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               children: [
                 StatusChip((submission?['status'] as String?) ?? 'pending'),
@@ -264,39 +326,58 @@ class _HomeworkDetailSheetState extends State<_HomeworkDetailSheet> {
             ),
 
             const SectionHeader('Instructions'),
-            Text((hw['instructions'] as String?) ?? 'No instructions given.'),
+            // Instructions live in a quiet tinted box so they read as
+            // "the teacher's words", separate from the sheet chrome.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Text(
+                (hw['instructions'] as String?) ?? 'No instructions given.',
+                style: const TextStyle(height: 1.5),
+              ),
+            ),
 
             // Only present once something was handed in.
             if (submission != null) ...[
               const SectionHeader('My submission'),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text((submission['content'] as String?) ?? ''),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Submitted ${submission['submitted_at'] ?? '-'}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
+              // Primary-tinted box: "this part is YOURS".
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: .06),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text((submission['content'] as String?) ?? ''),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Submitted ${submission['submitted_at'] ?? '-'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7686),
                       ),
-                      if (submission['marks'] != null)
-                        Text(
-                          'Marks: ${submission['marks']}'
-                          '${hw['max_marks'] != null ? ' / ${hw['max_marks']}' : ''}',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      if ((submission['feedback'] as String?)?.isNotEmpty ==
-                          true) ...[
-                        const SizedBox(height: 6),
-                        Text('Teacher feedback: ${submission['feedback']}'),
-                      ],
+                    ),
+                    if (submission['marks'] != null)
+                      Text(
+                        'Marks: ${submission['marks']}'
+                        '${hw['max_marks'] != null ? ' / ${hw['max_marks']}' : ''}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    if ((submission['feedback'] as String?)?.isNotEmpty ==
+                        true) ...[
+                      const SizedBox(height: 6),
+                      Text('Teacher feedback: ${submission['feedback']}'),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -311,7 +392,6 @@ class _HomeworkDetailSheetState extends State<_HomeworkDetailSheet> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   hintText: 'Type your answer here…',
-                  border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 14),

@@ -5,6 +5,13 @@ import '../../state/session.dart';
 import '../../widgets/common.dart';
 import '../../widgets/timetable_view.dart';
 
+// Shared "money/attendance mood" colours (same values StatusChip uses).
+const _okGreen = Color(0xFF15803D);
+const _dangerRed = Color(0xFFB91C1C);
+const _warnAmber = Color(0xFFB45309);
+const _excusedViolet = Color(0xFF6D28D9);
+const _muted = Color(0xFF6B7686);
+
 /// Everything about ONE child, in five tabs:
 /// Attendance · Homework · Results · Fees · Timetable.
 ///
@@ -111,6 +118,16 @@ class _AttendanceTabState extends State<_AttendanceTab>
     }
   }
 
+  /// The status colour tints the calendar badge so a scan down the list
+  /// reads like a traffic light, matching the StatusChip on the right.
+  Color _statusTint(String status) => switch (status.toLowerCase()) {
+        'present' => _okGreen,
+        'absent' => _dangerRed,
+        'late' => _warnAmber,
+        'excused' => _excusedViolet,
+        _ => _muted,
+      };
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // required by AutomaticKeepAliveClientMixin
@@ -128,43 +145,35 @@ class _AttendanceTabState extends State<_AttendanceTab>
           onRefresh: () async => setState(() => _future = _load()),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
-              // The month's numbers as a 2-column grid of StatCards —
-              // the same layout every dashboard in the app uses.
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.5,
-                children: [
-                  StatCard(
-                    label: 'Attendance',
-                    value: percent != null ? '$percent%' : '–',
-                    icon: Icons.percent,
-                  ),
-                  StatCard(
-                    label: 'Present',
-                    value: '${summary['present'] ?? 0}',
-                    icon: Icons.check_circle_outline,
-                    color: const Color(0xFF15803D),
-                  ),
-                  StatCard(
-                    label: 'Absent',
-                    value: '${summary['absent'] ?? 0}',
-                    icon: Icons.cancel_outlined,
-                    color: const Color(0xFFB91C1C),
-                  ),
-                  StatCard(
-                    label: 'Late',
-                    value: '${summary['late'] ?? 0}',
-                    icon: Icons.schedule,
-                    color: const Color(0xFFB45309),
-                  ),
-                ],
-              ),
+              // The month's numbers in the standard 2-column StatGrid —
+              // the same fixed-height tiles every dashboard uses.
+              StatGrid(cards: [
+                StatCard(
+                  label: 'Attendance',
+                  value: percent != null ? '$percent%' : '–',
+                  icon: Icons.percent,
+                ),
+                StatCard(
+                  label: 'Present',
+                  value: '${summary['present'] ?? 0}',
+                  icon: Icons.check_circle_outline,
+                  color: _okGreen,
+                ),
+                StatCard(
+                  label: 'Absent',
+                  value: '${summary['absent'] ?? 0}',
+                  icon: Icons.cancel_outlined,
+                  color: _dangerRed,
+                ),
+                StatCard(
+                  label: 'Late',
+                  value: '${summary['late'] ?? 0}',
+                  icon: Icons.schedule,
+                  color: _warnAmber,
+                ),
+              ]),
               SectionHeader('Day by day${month.isNotEmpty ? ' · $month' : ''}'),
               if (records.isEmpty)
                 const EmptyState(
@@ -172,7 +181,20 @@ class _AttendanceTabState extends State<_AttendanceTab>
                   message: 'No attendance recorded this month yet.',
                 )
               else
-                for (final r in records) _recordTile(r as Map<String, dynamic>),
+                // Short uniform rows → ONE grouped SoftCard with hairline
+                // dividers, instead of a stack of separate cards.
+                SoftCard(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < records.length; i++) ...[
+                        _recordTile(records[i] as Map<String, dynamic>),
+                        if (i != records.length - 1)
+                          const Divider(height: 1, indent: 72, endIndent: 16),
+                      ],
+                    ],
+                  ),
+                ),
             ],
           ),
         );
@@ -182,16 +204,20 @@ class _AttendanceTabState extends State<_AttendanceTab>
 
   Widget _recordTile(Map<String, dynamic> record) {
     final notes = (record['notes'] as String?) ?? '';
+    final status = (record['status'] as String?) ?? 'unknown';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: const Icon(Icons.calendar_today_outlined),
-        title: Text((record['date'] as String?) ?? ''),
-        // Only claim subtitle space when the teacher actually wrote a note.
-        subtitle: notes.isNotEmpty ? Text(notes) : null,
-        trailing: StatusChip((record['status'] as String?) ?? 'unknown'),
+    return ListTile(
+      leading: IconBadge(
+        Icons.calendar_today_rounded,
+        color: _statusTint(status),
       ),
+      title: Text(
+        (record['date'] as String?) ?? '',
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+      // Only claim subtitle space when the teacher actually wrote a note.
+      subtitle: notes.isNotEmpty ? Text(notes) : null,
+      trailing: StatusChip(status),
     );
   }
 }
@@ -262,7 +288,7 @@ class _HomeworkTabState extends State<_HomeworkTab>
                 )
               : ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   itemCount: items.length,
                   itemBuilder: (context, i) =>
                       _HomeworkCard(item: items[i] as Map<String, dynamic>),
@@ -273,8 +299,10 @@ class _HomeworkTabState extends State<_HomeworkTab>
   }
 }
 
-/// One assignment. NO submit button on purpose: the parent app is a
-/// window into the child's work, submitting stays in the student app.
+/// One assignment — a rich row, so it gets its own SoftCard. The badge
+/// carries the subject's stable colour (same on every screen). NO
+/// submit button on purpose: the parent app is a window into the
+/// child's work, submitting stays in the student app.
 class _HomeworkCard extends StatelessWidget {
   const _HomeworkCard({required this.item});
 
@@ -282,8 +310,7 @@ class _HomeworkCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
+    final title = (item['title'] as String?) ?? 'Homework';
     final subject = (item['subject'] as String?) ?? '';
     final teacher = (item['teacher'] as String?) ?? '';
     final instructions = (item['instructions'] as String?) ?? '';
@@ -297,84 +324,105 @@ class _HomeworkCard extends StatelessWidget {
     final status = (submission?['status'] as String?) ??
         (item['is_overdue'] == true ? 'overdue' : 'pending');
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    final tint = colorFor(subject.isNotEmpty ? subject : title);
+
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconBadge(Icons.menu_book_rounded, color: tint),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    if (subject.isNotEmpty || teacher.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (subject.isNotEmpty) subject,
+                          if (teacher.isNotEmpty) teacher,
+                        ].join(' · '),
+                        style: const TextStyle(
+                          color: _muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              StatusChip(status),
+            ],
+          ),
+          if (instructions.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              instructions,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _muted,
+                fontSize: 13,
+                height: 1.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          if (dueDate.isNotEmpty) ...[
+            const SizedBox(height: 10),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    (item['title'] as String?) ?? 'Homework',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                const Icon(Icons.event, size: 14, color: _muted),
+                const SizedBox(width: 5),
+                Text(
+                  'Due $dueDate',
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(width: 8),
-                StatusChip(status),
               ],
             ),
-            if (subject.isNotEmpty || teacher.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                [
-                  if (subject.isNotEmpty) subject,
-                  if (teacher.isNotEmpty) teacher,
-                ].join(' · '),
-                style: TextStyle(
-                  color: scheme.onSurfaceVariant,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-            if (instructions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                instructions,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-            if (dueDate.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.event, size: 15, color: scheme.onSurfaceVariant),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Due $dueDate',
-                    style: TextStyle(
-                      color: scheme.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            // Only graded work has marks — show them plus any comment
-            // the teacher left, so parents get the full picture.
-            if (marks != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Marks: ${_num(marks)} / ${_num(item['max_marks'] as num?)}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ],
-            if (feedback.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Teacher: $feedback',
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ],
           ],
-        ),
+          // Only graded work has marks — show them big plus any comment
+          // the teacher left, so parents get the full picture.
+          if (marks != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              '${_num(marks)} / ${_num(item['max_marks'] as num?)} marks',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+          ],
+          if (feedback.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Teacher: $feedback',
+              style: const TextStyle(
+                fontStyle: FontStyle.italic,
+                color: _muted,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -444,7 +492,7 @@ class _ResultsTabState extends State<_ResultsTab>
                 )
               : ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                   itemCount: results.length,
                   itemBuilder: (context, i) =>
                       _resultTile(context, results[i] as Map<String, dynamic>),
@@ -454,48 +502,83 @@ class _ResultsTabState extends State<_ResultsTab>
     );
   }
 
+  /// One result — subject-coloured badge on the left, the grade (or the
+  /// marks when ungraded) as the big number on the right.
   Widget _resultTile(BuildContext context, Map<String, dynamic> result) {
-    final scheme = Theme.of(context).colorScheme;
-
+    final exam = (result['exam'] as String?) ?? 'Exam';
     final grade = (result['grade'] as String?) ?? '';
     final subject = (result['subject'] as String?) ?? '';
     final term = (result['term'] as String?) ?? '';
     final date = (result['date'] as String?) ?? '';
     final isAbsent = result['is_absent'] == true;
+    final marksLine =
+        '${_num(result['marks_obtained'] as num?)} / ${_num(result['max_marks'] as num?)}';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          child: Text(
-            // The grade makes the best avatar; fall back to a generic
-            // icon-ish letter when the exam is ungraded or missed.
-            grade.isNotEmpty ? grade : (isAbsent ? '–' : '#'),
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: scheme.onPrimaryContainer,
+    final tint = colorFor(subject.isNotEmpty ? subject : exam);
+
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          IconBadge(Icons.workspace_premium_rounded, color: tint),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exam,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (subject.isNotEmpty) subject,
+                    if (term.isNotEmpty) term,
+                    if (date.isNotEmpty) date,
+                  ].join(' · '),
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        title: Text(
-          (result['exam'] as String?) ?? 'Exam',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text([
-          if (subject.isNotEmpty) subject,
-          if (term.isNotEmpty) term,
-          if (date.isNotEmpty) date,
-        ].join(' · ')),
-        trailing: isAbsent
-            ? const StatusChip('absent')
-            : Text(
-                '${_num(result['marks_obtained'] as num?)} / ${_num(result['max_marks'] as num?)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
+          const SizedBox(width: 10),
+          if (isAbsent)
+            const StatusChip('absent')
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  // The grade is the headline; ungraded exams promote
+                  // the raw marks to headline instead.
+                  grade.isNotEmpty ? grade : marksLine,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: grade.isNotEmpty ? 20 : 16,
+                    color: tint,
+                  ),
                 ),
-              ),
+                if (grade.isNotEmpty)
+                  Text(
+                    marksLine,
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+        ],
       ),
     );
   }
@@ -564,31 +647,25 @@ class _FeesTabState extends State<_FeesTab>
           onRefresh: () async => setState(() => _future = _load()),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.5,
-                children: [
-                  StatCard(
-                    label: 'Balance due',
-                    value: '$currency${due.toStringAsFixed(2)}',
-                    icon: Icons.hourglass_bottom,
-                    // Red only when money is actually owed.
-                    color: due > 0 ? const Color(0xFFB91C1C) : null,
-                  ),
-                  StatCard(
-                    label: 'Total paid',
-                    value: '$currency${paid.toStringAsFixed(2)}',
-                    icon: Icons.verified_outlined,
-                    color: const Color(0xFF15803D),
-                  ),
-                ],
-              ),
+              // The two numbers a parent cares about most, in the
+              // standard StatGrid tiles.
+              StatGrid(cards: [
+                StatCard(
+                  label: 'Balance due',
+                  value: '$currency${due.toStringAsFixed(2)}',
+                  icon: Icons.hourglass_bottom,
+                  // Red only when money is actually owed.
+                  color: due > 0 ? _dangerRed : null,
+                ),
+                StatCard(
+                  label: 'Total paid',
+                  value: '$currency${paid.toStringAsFixed(2)}',
+                  icon: Icons.verified_outlined,
+                  color: _okGreen,
+                ),
+              ]),
               const SectionHeader('Invoices'),
               if (invoices.isEmpty)
                 const EmptyState(
@@ -608,8 +685,21 @@ class _FeesTabState extends State<_FeesTab>
                   message: 'No payments recorded yet.',
                 )
               else
-                for (final p in payments)
-                  _paymentTile(context, p as Map<String, dynamic>, currency),
+                // Receipts are short uniform rows → group them in ONE
+                // SoftCard with hairline dividers.
+                SoftCard(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < payments.length; i++) ...[
+                        _paymentTile(
+                            payments[i] as Map<String, dynamic>, currency),
+                        if (i != payments.length - 1)
+                          const Divider(height: 1, indent: 72, endIndent: 16),
+                      ],
+                    ],
+                  ),
+                ),
             ],
           ),
         );
@@ -617,45 +707,39 @@ class _FeesTabState extends State<_FeesTab>
     );
   }
 
-  Widget _paymentTile(
-    BuildContext context,
-    Map<String, dynamic> payment,
-    String currency,
-  ) {
+  Widget _paymentTile(Map<String, dynamic> payment, String currency) {
     final method = (payment['method'] as String?) ?? '';
     final paidAt = (payment['paid_at'] as String?) ?? '';
     final invoiceNo = (payment['invoice_number'] as String?) ?? '';
     final amount = (payment['amount'] as num? ?? 0).toDouble();
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: const Icon(Icons.receipt_outlined),
-        title: Text(
-          'Receipt ${payment['receipt_number'] ?? '–'}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text([
-          if (method.isNotEmpty) method,
-          if (paidAt.isNotEmpty) paidAt,
-          if (invoiceNo.isNotEmpty) invoiceNo,
-        ].join(' · ')),
-        trailing: Text(
-          '$currency${amount.toStringAsFixed(2)}',
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 15,
-            color: Color(0xFF15803D), // paid money = green
-          ),
+    return ListTile(
+      leading: const IconBadge(Icons.receipt_outlined, color: _okGreen),
+      title: Text(
+        'Receipt ${payment['receipt_number'] ?? '–'}',
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+      subtitle: Text([
+        if (method.isNotEmpty) method,
+        if (paidAt.isNotEmpty) paidAt,
+        if (invoiceNo.isNotEmpty) invoiceNo,
+      ].join(' · ')),
+      trailing: Text(
+        '$currency${amount.toStringAsFixed(2)}',
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 15,
+          color: _okGreen, // paid money = green
         ),
       ),
     );
   }
 }
 
-/// One invoice row. Custom layout (not a ListTile) because we stack a
-/// StatusChip ABOVE the balance on the right — a ListTile's trailing
-/// slot is too short for both and would overflow on small phones.
+/// One invoice — a rich row, so it gets its own SoftCard. Custom layout
+/// (not a ListTile) because we stack a StatusChip ABOVE the balance on
+/// the right — a ListTile's trailing slot is too short for both and
+/// would overflow on small phones.
 class _InvoiceTile extends StatelessWidget {
   const _InvoiceTile({required this.invoice, required this.currency});
 
@@ -664,8 +748,6 @@ class _InvoiceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     final feeType = (invoice['fee_type'] as String?) ?? 'Fee';
     final number = (invoice['invoice_number'] as String?) ?? '';
     final period = (invoice['period'] as String?) ?? '';
@@ -677,54 +759,59 @@ class _InvoiceTile extends StatelessWidget {
         ? 'overdue'
         : (invoice['status'] as String?) ?? 'pending';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    feeType,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    [
-                      if (number.isNotEmpty) number,
-                      if (period.isNotEmpty) period,
-                      if (dueDate.isNotEmpty) 'Due $dueDate',
-                    ].join(' · '),
-                    style: TextStyle(
-                      color: scheme.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          IconBadge(Icons.receipt_long_rounded, color: colorFor(feeType)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                StatusChip(status),
-                const SizedBox(height: 6),
                 Text(
-                  // The remaining balance is what a parent cares about,
-                  // not the original invoice amount.
-                  '$currency${balance.toStringAsFixed(2)}',
+                  feeType,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 15,
                   ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (number.isNotEmpty) number,
+                    if (period.isNotEmpty) period,
+                    if (dueDate.isNotEmpty) 'Due $dueDate',
+                  ].join(' · '),
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              StatusChip(status),
+              const SizedBox(height: 6),
+              Text(
+                // The remaining balance is what a parent cares about,
+                // not the original invoice amount. Green zero = settled.
+                '$currency${balance.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: balance > 0 ? _dangerRed : _okGreen,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -736,7 +823,8 @@ class _InvoiceTile extends StatelessWidget {
 
 /// GET /parent/children/{id}/timetable → same {today, days} shape the
 /// student and teacher screens use, so the shared TimetableView widget
-/// does all the rendering work here.
+/// (day-picker pills + colour-coded timeline) does all the rendering
+/// work here.
 class _TimetableTab extends StatefulWidget {
   const _TimetableTab({required this.childId});
 
@@ -784,16 +872,17 @@ class _TimetableTabState extends State<_TimetableTab>
           onRefresh: () async => setState(() => _future = _load()),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
               if (section.isNotEmpty) ...[
                 Text(
                   section,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: const TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
               ],
               // The shared widget handles the day picker + period cards.
               TimetableView(data: data),

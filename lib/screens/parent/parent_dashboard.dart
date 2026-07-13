@@ -5,8 +5,9 @@ import '../../state/session.dart';
 import '../../widgets/common.dart';
 import 'child_detail.dart';
 
-/// The parent's home tab: one card per child, plus a family-wide
-/// "you owe the school money" banner when any fees are outstanding.
+/// The parent's home tab: a gradient hero greeting, a family-wide
+/// "you owe the school money" card floating over it when fees are
+/// outstanding, then one card per child.
 ///
 /// GET /parent/dashboard returns:
 ///   {
@@ -55,10 +56,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currency = context.watch<Session>().currency;
+    final session = context.watch<Session>();
+    final currency = session.currency;
 
+    // "Esther Stowell" → "Esther". `split` never returns an empty list,
+    // so `.first` is safe even for an empty string.
+    final firstName = session.userName.split(' ').first;
+
+    // Dashboards get NO AppBar: the gradient HeroHeader owns the top of
+    // the screen (it pads itself below the status bar).
     return Scaffold(
-      appBar: AppBar(title: const Text('My children')),
       body: ApiFutureView<Map<String, dynamic>>(
         future: _future,
         onRetry: _refresh,
@@ -70,40 +77,68 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             onRefresh: () async => _refresh(),
             child: ListView(
               // Even when the list is short, keep it scrollable so the
-              // pull-to-refresh gesture always works.
+              // pull-to-refresh gesture always works. Zero padding: the
+              // hero banner must bleed edge-to-edge.
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.zero,
               children: [
-                if (totalDue > 0) ...[
-                  _FamilyDueBanner(amount: totalDue, currency: currency),
-                  const SizedBox(height: 12),
-                ],
-                if (children.isEmpty)
-                  const EmptyState(
-                    icon: Icons.family_restroom,
-                    message:
-                        'No children are linked to your account yet.\nAsk the school office to link them.',
-                  )
-                else
-                  for (final child in children)
-                    _ChildCard(
-                      child: child as Map<String, dynamic>,
-                      currency: currency,
-                      onTap: () {
-                        // Push the per-child detail screen. When the user
-                        // comes back the dashboard is still here, exactly
-                        // as they left it (the Future is preserved).
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChildDetailScreen(
-                              childId: (child['id'] as num?)?.toInt() ?? 0,
-                              childName:
-                                  (child['full_name'] as String?) ?? 'Child',
-                            ),
+                // The signature dashboard composition: the content below
+                // the banner floats 30px up over its bottom edge. When
+                // fees are due, the amber "family balance" card is the
+                // floating piece; otherwise the children section itself
+                // overlaps the banner.
+                HeroHeader.overlap(
+                  overlap: 30,
+                  header: HeroHeader(
+                    caption: session.schoolName.toUpperCase(),
+                    title: 'Hi, ${firstName.isEmpty ? 'there' : firstName} 👋',
+                    subtitle: 'Your children at a glance',
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (totalDue > 0)
+                          _FamilyDueBanner(
+                            amount: totalDue,
+                            currency: currency,
                           ),
-                        );
-                      },
+                        if (children.isEmpty)
+                          const EmptyState(
+                            icon: Icons.family_restroom,
+                            message:
+                                'No children are linked to your account yet.\nAsk the school office to link them.',
+                          )
+                        else ...[
+                          const SectionHeader('Children'),
+                          for (final child in children)
+                            _ChildCard(
+                              child: child as Map<String, dynamic>,
+                              currency: currency,
+                              onTap: () {
+                                // Push the per-child detail screen. When
+                                // the user comes back the dashboard is
+                                // still here, exactly as they left it
+                                // (the Future is preserved).
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => ChildDetailScreen(
+                                      childId:
+                                          (child['id'] as num?)?.toInt() ?? 0,
+                                      childName:
+                                          (child['full_name'] as String?) ??
+                                              'Child',
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      ],
                     ),
+                  ),
+                ),
               ],
             ),
           );
@@ -113,9 +148,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 }
 
-/// A warm amber banner shown only when the family owes money.
-/// Same warm colour StatusChip uses for "pending", so the palette
-/// stays consistent across the app.
+/// The floating "family balance due" card — an amber wallet badge next
+/// to one big number. Same warm colour StatusChip uses for "pending",
+/// so the palette stays consistent across the app.
 class _FamilyDueBanner extends StatelessWidget {
   const _FamilyDueBanner({required this.amount, required this.currency});
 
@@ -126,32 +161,45 @@ class _FamilyDueBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: _warm.withValues(alpha: .10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            const Icon(Icons.account_balance_wallet_outlined, color: _warm),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Family balance due: $currency${amount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: _warm,
-                  fontWeight: FontWeight.w700,
+    return SoftCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          const IconBadge(Icons.account_balance_wallet_rounded, color: _warm),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Family balance due',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7686),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 2),
+                Text(
+                  '$currency${amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: _warm,
+                    height: 1.1,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 /// One tappable summary card per child: who they are, plus three
-/// at-a-glance numbers (attendance %, fees due, last exam result).
+/// at-a-glance pills (attendance %, fees due, last exam result).
 class _ChildCard extends StatelessWidget {
   const _ChildCard({
     required this.child,
@@ -175,87 +223,96 @@ class _ChildCard extends StatelessWidget {
     final feeDue = (child['fee_due'] as num? ?? 0).toDouble();
     final lastResult = child['last_result'] as Map<String, dynamic>?;
 
-    return Card(
+    // Each child gets a stable identity colour — the same one their
+    // name would get anywhere else in the app.
+    final tint = colorFor(name);
+
+    return SoftCard(
       margin: const EdgeInsets.only(bottom: 12),
-      // Card + InkWell (instead of ListTile) because we want a custom
-      // two-row layout AND the ripple effect on tap.
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(16),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: scheme.primaryContainer,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: TextStyle(
+              CircleAvatar(
+                radius: 23,
+                backgroundColor: tint.withValues(alpha: .14),
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: tint,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
                         fontWeight: FontWeight.w800,
-                        color: scheme.onPrimaryContainer,
+                        fontSize: 16,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          [
-                            if (className.isNotEmpty) className,
-                            if (section.isNotEmpty) section,
-                          ].join(' · '),
-                          style: TextStyle(color: scheme.onSurfaceVariant),
-                        ),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        if (className.isNotEmpty) className,
+                        if (section.isNotEmpty) section,
+                      ].join(' · '),
+                      style: const TextStyle(
+                        color: Color(0xFF6B7686),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const Icon(Icons.chevron_right),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              // Wrap (not Row) so the pills flow to a second line on
-              // narrow phones instead of overflowing.
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _MiniStat(
-                    icon: Icons.fact_check_outlined,
-                    label: percent != null ? '$percent% attendance' : 'No attendance yet',
-                    color: _attendanceColor(percent, scheme),
-                  ),
-                  _MiniStat(
-                    icon: Icons.receipt_long_outlined,
-                    label: feeDue > 0
-                        ? 'Due $currency${feeDue.toStringAsFixed(2)}'
-                        : 'No dues',
-                    color: feeDue > 0
-                        ? const Color(0xFFB91C1C) // red — action needed
-                        : const Color(0xFF15803D), // green — all clear
-                  ),
-                  if (lastResult != null)
-                    _MiniStat(
-                      icon: Icons.grade_outlined,
-                      label: _lastResultLabel(lastResult),
-                      color: scheme.primary,
-                    ),
-                ],
-              ),
+              const Icon(Icons.chevron_right, color: Color(0xFFB6BEC9)),
             ],
           ),
-        ),
+          const SizedBox(height: 12),
+          // Wrap (not Row) so the pills flow to a second line on
+          // narrow phones instead of overflowing.
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MiniStat(
+                icon: Icons.fact_check_outlined,
+                label: percent != null
+                    ? '$percent% attendance'
+                    : 'No attendance yet',
+                color: _attendanceColor(percent, scheme),
+              ),
+              _MiniStat(
+                icon: Icons.receipt_long_outlined,
+                label: feeDue > 0
+                    ? 'Due $currency${feeDue.toStringAsFixed(2)}'
+                    : 'No dues',
+                color: feeDue > 0
+                    ? const Color(0xFFB91C1C) // red — action needed
+                    : const Color(0xFF15803D), // green — all clear
+              ),
+              if (lastResult != null)
+                _MiniStat(
+                  icon: Icons.grade_outlined,
+                  label: _lastResultLabel(lastResult),
+                  // Subject accent = the subject's stable colour, same
+                  // as the timetable and homework screens.
+                  color: colorFor(
+                      (lastResult['subject'] as String?) ?? 'Last exam'),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }

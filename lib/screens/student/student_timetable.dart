@@ -7,7 +7,7 @@ import '../../widgets/timetable_view.dart';
 
 /// The student's weekly timetable tab.
 ///
-/// Notice how SMALL this screen is: all the day-picking and period-list
+/// Notice how SMALL this screen is: all the day-picking and the timeline
 /// rendering lives in the shared [TimetableView] widget (teachers use
 /// the exact same one). This screen only has to (1) fetch the data and
 /// (2) show which class/section it belongs to.
@@ -43,8 +43,6 @@ class _StudentTimetableScreenState extends State<StudentTimetableScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Timetable')),
       body: ApiFutureView<Map<String, dynamic>>(
@@ -59,25 +57,28 @@ class _StudentTimetableScreenState extends State<StudentTimetableScreen> {
               // AlwaysScrollable so pull-to-refresh works even on days
               // with only a couple of periods.
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Which class this timetable belongs to, e.g.
-                  // "Class 5 — A", shown as a quiet subtitle line.
+                  // "Class 5 — A", as a small uppercase caption above
+                  // the day picker.
                   if (section.isNotEmpty) ...[
                     Text(
-                      section,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
+                      section.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .6,
+                        color: Color(0xFF6B7686),
+                      ),
                     ),
                     const SizedBox(height: 12),
                   ],
 
-                  // The shared widget does the rest: day chips + period
-                  // cards, opening on today's column automatically.
+                  // The shared widget does the rest: day pills + the
+                  // colour-coded timeline, opening on today's column.
                   TimetableView(data: data),
                 ],
               ),

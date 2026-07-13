@@ -57,7 +57,7 @@ class _StudentExamsScreenState extends State<StudentExamsScreen> {
             onRefresh: () async => setState(() => _future = _load()),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               children: [
                 if (upcoming.isNotEmpty) ...[
                   const SectionHeader('Upcoming'),
@@ -79,41 +79,84 @@ class _StudentExamsScreenState extends State<StudentExamsScreen> {
     );
   }
 
+  /// One exam as a SoftCard: subject-coloured badge (calendar for
+  /// what's ahead, history for what's behind), name + meta on the left,
+  /// date + details + status on the right.
   Widget _examCard(BuildContext context, Map<String, dynamic> exam,
       {required bool upcoming}) {
-    final scheme = Theme.of(context).colorScheme;
+    final subject = (exam['subject'] as String?) ?? '';
     final status = (exam['status'] as String?) ?? '';
+    final tint = colorFor(subject.isEmpty ? 'Exam' : subject);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: CircleAvatar(
-          // Tinted for what's ahead, muted for what's behind —
-          // a quick visual cue before you even read the dates.
-          backgroundColor:
-              upcoming ? scheme.primaryContainer : scheme.surfaceContainerHighest,
-          child: Icon(
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          // The icon (not the colour) tells past from future — the
+          // colour always belongs to the subject.
+          IconBadge(
             upcoming ? Icons.event_outlined : Icons.history,
-            color:
-                upcoming ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+            color: tint,
           ),
-        ),
-        title: Text(
-          '${exam['name'] ?? 'Exam'} — ${exam['subject'] ?? ''}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${exam['term'] ?? ''} · ${exam['scheduled_at'] ?? ''}'),
-            Text([
-              if (exam['duration'] != null) '${exam['duration']} min',
-              if (exam['max_marks'] != null) 'Max ${exam['max_marks']} marks',
-            ].join(' · ')),
-          ],
-        ),
-        isThreeLine: true,
-        trailing: status.isNotEmpty ? StatusChip(status) : null,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (exam['name'] as String?) ?? 'Exam',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (subject.isNotEmpty) subject,
+                    if (exam['term'] != null) '${exam['term']}',
+                  ].join(' · '),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7686),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                (exam['scheduled_at'] as String?) ?? '',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                [
+                  if (exam['duration'] != null) '${exam['duration']} min',
+                  if (exam['max_marks'] != null)
+                    'Max ${exam['max_marks']}',
+                ].join(' · '),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7686),
+                ),
+              ),
+              if (status.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                StatusChip(status),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -82,7 +82,9 @@ lib/
 │   ├── parent/…                  ⑧ children dashboard + child detail tabs
 │   └── shared/…                  ⑨ notices + notifications (all roles)
 └── widgets/
-    ├── common.dart               StatCard, StatusChip, EmptyState, ApiFutureView
+    ├── common.dart               The design system: HeroHeader (gradient banner),
+    │                             SoftCard, IconBadge, StatCard/StatGrid, StatusChip,
+    │                             EmptyState, ApiFutureView, colorFor(subject)
     └── timetable_view.dart       The weekly timetable (student + teacher share it)
 ```
 

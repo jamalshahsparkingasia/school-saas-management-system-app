@@ -57,8 +57,9 @@ class _NoticesScreenState extends State<NoticesScreen> {
               .map((n) => n as Map<String, dynamic>)
               .toList();
 
-          // Pinned notices float to the top in their own group so the
-          // office's "don't miss this" items are impossible to miss.
+          // Pinned notices float to the top — each one wears a small
+          // "PINNED" pill so the office's "don't miss this" items are
+          // impossible to miss even while scrolling fast.
           final pinned = rows.where((n) => n['is_pinned'] == true).toList();
           final others = rows.where((n) => n['is_pinned'] != true).toList();
 
@@ -66,7 +67,7 @@ class _NoticesScreenState extends State<NoticesScreen> {
             onRefresh: () async => setState(() => _future = _load()),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [
                 if (rows.isEmpty)
                   const EmptyState(
@@ -74,13 +75,10 @@ class _NoticesScreenState extends State<NoticesScreen> {
                     message: 'No notices yet.',
                   )
                 else ...[
-                  if (pinned.isNotEmpty) ...[
-                    const SectionHeader('Pinned'),
-                    for (final notice in pinned)
-                      _NoticeCard(notice: notice, pinned: true),
-                  ],
-                  // Only label the second group when there ARE two groups —
-                  // a lone "All notices" header would just be noise.
+                  for (final notice in pinned)
+                    _NoticeCard(notice: notice, pinned: true),
+                  // Only label the second group when there ARE two
+                  // groups — a lone "All notices" header would be noise.
                   if (pinned.isNotEmpty && others.isNotEmpty)
                     const SectionHeader('All notices'),
                   for (final notice in others)
@@ -95,7 +93,8 @@ class _NoticesScreenState extends State<NoticesScreen> {
   }
 }
 
-/// One notice: title + date on the first line, full body below.
+/// One notice card: the optional PINNED pill, a bold title, the full
+/// body in muted grey, and a tiny calendar + date footer.
 class _NoticeCard extends StatelessWidget {
   const _NoticeCard({required this.notice, required this.pinned});
 
@@ -109,44 +108,79 @@ class _NoticeCard extends StatelessWidget {
     final body = (notice['body'] as String?) ?? '';
     final date = (notice['publish_at'] as String?) ?? '';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (pinned) ...[
-                  Icon(Icons.push_pin, size: 16, color: scheme.primary),
-                  const SizedBox(width: 6),
-                ],
-                Expanded(
-                  child: Text(
-                    (notice['title'] as String?) ?? 'Notice',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                if (date.isNotEmpty) ...[
-                  const SizedBox(width: 8),
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (pinned) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.push_pin_rounded, size: 12, color: scheme.primary),
+                  const SizedBox(width: 4),
                   Text(
-                    date, // already a friendly YYYY-MM-DD string
+                    'PINNED',
                     style: TextStyle(
-                      color: scheme.onSurfaceVariant,
-                      fontSize: 12,
+                      color: scheme.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .6,
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Text(
+            (notice['title'] as String?) ?? 'Notice',
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 15.5,
+            ),
+          ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              body,
+              style: const TextStyle(
+                color: Color(0xFF6B7686),
+                fontSize: 13.5,
+                height: 1.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          if (date.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_today_rounded,
+                  size: 13,
+                  color: Color(0xFF8A94A6),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  date, // already a friendly YYYY-MM-DD string
+                  style: const TextStyle(
+                    color: Color(0xFF8A94A6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
-            if (body.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(body),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }

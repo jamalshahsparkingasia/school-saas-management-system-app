@@ -47,7 +47,7 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Timetable')),
+      appBar: AppBar(title: const Text('My timetable')),
       body: ApiFutureView<Map<String, dynamic>>(
         future: _future,
         onRetry: () => setState(() => _future = _load()),
@@ -58,7 +58,7 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen> {
               // Keeps pull-to-refresh working even on quiet weeks where
               // the content doesn't fill the screen.
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               children: [
                 // TimetableView expects the whole `data` map:
                 // {"today": "mon", "days": {"mon": [...], ...}}

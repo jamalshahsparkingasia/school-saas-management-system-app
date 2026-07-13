@@ -63,31 +63,25 @@ class _StudentFeesScreenState extends State<StudentFeesScreen> {
             onRefresh: () async => setState(() => _future = _load()),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               children: [
                 // The two numbers a parent/student cares about most.
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.5,
-                  children: [
-                    StatCard(
-                      label: 'Due',
-                      value:
-                          '${session.currency}${_money(totals['due'] as num? ?? 0)}',
-                      icon: Icons.hourglass_bottom,
-                      color: _dangerRed,
-                    ),
-                    StatCard(
-                      label: 'Paid',
-                      value:
-                          '${session.currency}${_money(totals['paid'] as num? ?? 0)}',
-                      icon: Icons.verified_outlined,
-                      color: _okGreen,
-                    ),
-                  ],
-                ),
+                StatGrid(cards: [
+                  StatCard(
+                    label: 'Due',
+                    value:
+                        '${session.currency}${_money(totals['due'] as num? ?? 0)}',
+                    icon: Icons.hourglass_bottom,
+                    color: _dangerRed,
+                  ),
+                  StatCard(
+                    label: 'Paid',
+                    value:
+                        '${session.currency}${_money(totals['paid'] as num? ?? 0)}',
+                    icon: Icons.verified_outlined,
+                    color: _okGreen,
+                  ),
+                ]),
 
                 const SectionHeader('Invoices'),
                 if (invoices.isEmpty)
@@ -106,8 +100,25 @@ class _StudentFeesScreenState extends State<StudentFeesScreen> {
                     message: 'No payments recorded yet.',
                   )
                 else
-                  ...payments.map((p) => _paymentTile(
-                      context, p as Map<String, dynamic>, session.currency)),
+                  // Receipts are short, uniform rows — so they share ONE
+                  // SoftCard, separated by hairline dividers (the same
+                  // grouped-list pattern as the "More" tab).
+                  SoftCard(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < payments.length; i++) ...[
+                          _paymentTile(
+                              context,
+                              payments[i] as Map<String, dynamic>,
+                              session.currency),
+                          if (i != payments.length - 1)
+                            const Divider(
+                                height: 1, indent: 72, endIndent: 16),
+                        ],
+                      ],
+                    ),
+                  ),
               ],
             ),
           );
@@ -116,102 +127,105 @@ class _StudentFeesScreenState extends State<StudentFeesScreen> {
     );
   }
 
-  /// One invoice. Built with a plain Row (not a ListTile) because the
-  /// right side stacks a chip on top of two amounts — more than a
-  /// ListTile's `trailing` slot can comfortably hold.
+  /// One invoice as its own SoftCard. Built with a plain Row (not a
+  /// ListTile) because the right side stacks a chip on top of two
+  /// amounts — more than a ListTile's `trailing` slot can hold.
   Widget _invoiceCard(
       BuildContext context, Map<String, dynamic> inv, String currency) {
-    final scheme = Theme.of(context).colorScheme;
     final overdue = inv['is_overdue'] == true;
     final balance = inv['balance'] as num? ?? 0;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    (inv['fee_type'] as String?) ?? 'Fee',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${inv['invoice_number'] ?? ''} · ${inv['period'] ?? ''}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                  Text(
-                    'Due ${inv['due_date'] ?? '-'}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          // Red + bold when the deadline has passed.
-                          color:
-                              overdue ? _dangerRed : scheme.onSurfaceVariant,
-                          fontWeight: overdue ? FontWeight.w700 : null,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Show 'overdue' in the chip even when the raw status
-                // says 'pending' — it's the more urgent truth.
-                StatusChip(
-                    overdue ? 'overdue' : (inv['status'] as String?) ?? ''),
-                const SizedBox(height: 6),
-                // The BALANCE is the emphasized number: it's what still
-                // needs paying (green zero = settled).
                 Text(
-                  '$currency${_money(balance)}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: balance > 0 ? _dangerRed : _okGreen,
-                      ),
+                  (inv['fee_type'] as String?) ?? 'Fee',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  'of $currency${_money(inv['amount'] as num? ?? 0)}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
+                  '${inv['invoice_number'] ?? ''} · ${inv['period'] ?? ''}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7686),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Due ${inv['due_date'] ?? '-'}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    // Red + bold when the deadline has passed.
+                    color: overdue ? _dangerRed : const Color(0xFF6B7686),
+                    fontWeight: overdue ? FontWeight.w700 : FontWeight.w600,
+                  ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Show 'overdue' in the chip even when the raw status
+              // says 'pending' — it's the more urgent truth.
+              StatusChip(
+                  overdue ? 'overdue' : (inv['status'] as String?) ?? ''),
+              const SizedBox(height: 6),
+              // The BALANCE is the emphasized number: it's what still
+              // needs paying (green zero = settled).
+              Text(
+                '$currency${_money(balance)}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: balance > 0 ? _dangerRed : _okGreen,
+                ),
+              ),
+              Text(
+                'of $currency${_money(inv['amount'] as num? ?? 0)}',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7686),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  /// One payment receipt — a simple tile, no card needed.
+  /// One payment receipt — a row inside the grouped receipts card.
   Widget _paymentTile(
       BuildContext context, Map<String, dynamic> pay, String currency) {
-    final scheme = Theme.of(context).colorScheme;
-
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: _okGreen.withValues(alpha: .12),
-        child: const Icon(Icons.receipt_outlined, color: _okGreen),
-      ),
+      leading: IconBadge(Icons.receipt_outlined, color: _okGreen),
       title: Text(
         '$currency${_money(pay['amount'] as num? ?? 0)} · ${pay['method'] ?? ''}',
-        style: const TextStyle(fontWeight: FontWeight.w700),
+        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
       ),
       subtitle: Text(
         '${pay['receipt_number'] ?? ''} · ${pay['invoice_number'] ?? ''}',
-        style: TextStyle(color: scheme.onSurfaceVariant),
       ),
       trailing: Text(
         (pay['paid_at'] as String?) ?? '',
-        style: Theme.of(context).textTheme.bodySmall,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF6B7686),
+        ),
       ),
     );
   }

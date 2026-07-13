@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/session.dart';
+import '../widgets/common.dart';
 import 'parent/parent_dashboard.dart';
 import 'shared/notices_screen.dart';
 import 'shared/notifications_screen.dart';
@@ -79,7 +80,7 @@ class _HomeShellState extends State<HomeShell> {
 }
 
 /// The "More" tab: everything that didn't earn a bottom-bar slot,
-/// plus the profile card and the sign-out button.
+/// plus the profile hero and the sign-out button.
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
@@ -89,100 +90,94 @@ class MoreScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     // Extra destinations that differ per role.
-    final items = <(IconData, String, Widget)>[
+    final items = <(IconData, String, String, Widget)>[
       if (session.role == 'student') ...[
-        (Icons.grade_rounded, 'Results', const StudentResultsScreen()),
-        (Icons.quiz_rounded, 'Exams', const StudentExamsScreen()),
-        (Icons.auto_stories_rounded, 'Lessons', const StudentLessonsScreen()),
+        (Icons.grade_rounded, 'Results', 'Marks and grades per exam',
+            const StudentResultsScreen()),
+        (Icons.quiz_rounded, 'Exams', 'Upcoming and past exams',
+            const StudentExamsScreen()),
+        (Icons.auto_stories_rounded, 'Lessons', 'Study material by subject',
+            const StudentLessonsScreen()),
       ],
-      (Icons.campaign_rounded, 'Notice board', const NoticesScreen()),
-      (Icons.notifications_rounded, 'Notifications', const NotificationsScreen()),
+      (Icons.campaign_rounded, 'Notice board', 'Announcements from school',
+          const NoticesScreen()),
+      (Icons.notifications_rounded, 'Notifications', 'Your personal alerts',
+          const NotificationsScreen()),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('More')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.zero,
         children: [
-          // Profile card.
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: scheme.primaryContainer,
-                    child: Text(
-                      session.userName.isNotEmpty
-                          ? session.userName[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: scheme.onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          session.userName,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 16),
-                        ),
-                        Text(
-                          '${session.role[0].toUpperCase()}${session.role.substring(1)} · ${session.schoolName}',
-                          style: TextStyle(color: scheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          HeroHeader(
+            caption: session.schoolName.toUpperCase(),
+            title: session.userName,
+            subtitle:
+                '${session.role[0].toUpperCase()}${session.role.substring(1)} account · ${session.user?['email'] ?? ''}',
           ),
-          const SizedBox(height: 8),
-
-          for (final item in items)
-            ListTile(
-              leading: Icon(item.$1),
-              title: Text(item.$2),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => item.$3),
-              ),
-            ),
-
-          const Divider(height: 32),
-          ListTile(
-            leading: Icon(Icons.logout, color: scheme.error),
-            title: Text('Sign out', style: TextStyle(color: scheme.error)),
-            onTap: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Sign out?'),
-                  content: const Text('You will need to log in again.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Sign out'),
-                    ),
-                  ],
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                SoftCard(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Column(
+                    children: [
+                      for (final item in items) ...[
+                        ListTile(
+                          leading: IconBadge(item.$1, color: colorFor(item.$2)),
+                          title: Text(item.$2),
+                          subtitle: Text(item.$3),
+                          trailing: const Icon(Icons.chevron_right,
+                              color: Color(0xFFB6BEC9)),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => item.$4),
+                          ),
+                        ),
+                        if (item != items.last)
+                          const Divider(height: 1, indent: 72, endIndent: 16),
+                      ],
+                    ],
+                  ),
                 ),
-              );
-              if (confirmed == true && context.mounted) {
-                await context.read<Session>().logout();
-              }
-            },
+                const SizedBox(height: 16),
+                SoftCard(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    leading: IconBadge(Icons.logout_rounded,
+                        color: scheme.error),
+                    title: Text('Sign out',
+                        style: TextStyle(
+                            color: scheme.error,
+                            fontWeight: FontWeight.w700)),
+                    subtitle: const Text('You will need to log in again'),
+                    onTap: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Sign out?'),
+                          content:
+                              const Text('You will need to log in again.'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Sign out'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true && context.mounted) {
+                        await context.read<Session>().logout();
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

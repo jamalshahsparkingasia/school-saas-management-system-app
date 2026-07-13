@@ -42,15 +42,30 @@ class _StudentLessonsScreenState extends State<StudentLessonsScreen> {
       context: context,
       isScrollControlled: true, // lesson notes can be long
       useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (context) {
-        final scheme = Theme.of(context).colorScheme;
-
         return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min, // hug content, don't fill screen
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // The drag handle every bottom sheet in the app starts with.
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+
               Text(
                 (lesson['title'] as String?) ?? 'Lesson',
                 style: Theme.of(context)
@@ -65,21 +80,38 @@ class _StudentLessonsScreenState extends State<StudentLessonsScreen> {
                   if (lesson['unit'] != null) 'Unit ${lesson['unit']}',
                   if (lesson['topic'] != null) '${lesson['topic']}',
                 ].join(' · '),
-                style: TextStyle(color: scheme.onSurfaceVariant),
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7686),
+                ),
               ),
               Text(
                 (lesson['lesson_date'] as String?) ?? '',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7686),
+                ),
               ),
-              const Divider(height: 28),
-              Text(
-                (lesson['content'] as String?) ??
-                    'No notes for this lesson yet.',
-                // A touch of line height makes long notes readable.
-                style: const TextStyle(height: 1.5),
+              const SizedBox(height: 18),
+
+              // The notes live in a quiet tinted box so they read as
+              // "the material", separate from the sheet chrome.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Text(
+                  (lesson['content'] as String?) ??
+                      'No notes for this lesson yet.',
+                  // A touch of line height makes long notes readable.
+                  style: const TextStyle(height: 1.5),
+                ),
               ),
             ],
           ),
@@ -109,7 +141,7 @@ class _StudentLessonsScreenState extends State<StudentLessonsScreen> {
             onRefresh: () async => setState(() => _future = _load()),
             child: ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               itemCount: subjects.length,
               itemBuilder: (context, i) =>
                   _subjectGroup(context, subjects[i] as Map<String, dynamic>),
@@ -120,39 +152,45 @@ class _StudentLessonsScreenState extends State<StudentLessonsScreen> {
     );
   }
 
-  /// One subject with its lessons folded inside an ExpansionTile.
+  /// One subject as a SoftCard with its lessons folded inside an
+  /// ExpansionTile, anchored by the subject's stable colour.
   Widget _subjectGroup(BuildContext context, Map<String, dynamic> group) {
-    final scheme = Theme.of(context).colorScheme;
     final subject = (group['subject'] as String?) ?? 'Subject';
     final lessons = group['lessons'] as List<dynamic>? ?? [];
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.zero,
       // Without clipping, the expanded tile's ink would poke out past
       // the card's rounded corners.
-      clipBehavior: Clip.antiAlias,
-      child: ExpansionTile(
-        // ExpansionTile paints its own top/bottom dividers when open;
-        // inside a Card they look like glitches, so remove them.
-        shape: const Border(),
-        collapsedShape: const Border(),
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          child: Text(
-            subject.isNotEmpty ? subject[0].toUpperCase() : '?',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: scheme.onPrimaryContainer,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: ExpansionTile(
+          // ExpansionTile paints its own top/bottom dividers when open;
+          // inside a card they look like glitches, so remove them.
+          shape: const Border(),
+          collapsedShape: const Border(),
+          tilePadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: IconBadge(Icons.auto_stories_rounded,
+              color: colorFor(subject)),
+          title: Text(
+            subject,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          ),
+          subtitle: Text(
+            '${lessons.length} lesson${lessons.length == 1 ? '' : 's'}',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF6B7686),
             ),
           ),
+          children: [
+            for (final l in lessons)
+              _lessonTile(context, l as Map<String, dynamic>, subject),
+          ],
         ),
-        title: Text(subject, style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text(
-            '${lessons.length} lesson${lessons.length == 1 ? '' : 's'}'),
-        children: [
-          for (final l in lessons)
-            _lessonTile(context, l as Map<String, dynamic>, subject),
-        ],
       ),
     );
   }
@@ -161,13 +199,14 @@ class _StudentLessonsScreenState extends State<StudentLessonsScreen> {
       BuildContext context, Map<String, dynamic> lesson, String subject) {
     return ListTile(
       onTap: () => _openLesson(lesson, subject),
-      leading: const Icon(Icons.article_outlined),
+      leading: const Icon(Icons.article_outlined, color: Color(0xFF8A94A6)),
       title: Text((lesson['title'] as String?) ?? 'Lesson'),
       subtitle: Text([
         if (lesson['topic'] != null) '${lesson['topic']}',
+        if (lesson['unit'] != null) 'Unit ${lesson['unit']}',
         if (lesson['lesson_date'] != null) '${lesson['lesson_date']}',
       ].join(' · ')),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: const Icon(Icons.chevron_right, color: Color(0xFFB6BEC9)),
     );
   }
 }

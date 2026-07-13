@@ -12,7 +12,8 @@ String _money(num value) => value == value.roundToDouble()
     : value.toStringAsFixed(2);
 
 /// The student's home tab — a one-glance summary of their school life:
-/// who they are, attendance, money, upcoming exams and latest results.
+/// a gradient hero with who they are, a floating stat grid (attendance,
+/// money, library), then upcoming exams and latest results.
 ///
 /// This is a [StatefulWidget] for one reason only: it must HOLD the
 /// [Future] returned by the API call. If we called the API inside
@@ -53,19 +54,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // `watch` here (unlike `read` above) because the AppBar shows the
-    // user's name — if the session changes, the title should too.
+    // `watch` here (unlike `read` above) because the hero shows the
+    // user's name and school — if the session changes, so should they.
     final session = context.watch<Session>();
-    final scheme = Theme.of(context).colorScheme;
 
     // "Esther Stowell" → "Esther". `split` never returns an empty list,
     // so `.first` is safe even for an empty string.
     final firstName = session.userName.split(' ').first;
 
+    // No AppBar: the gradient HeroHeader IS the top of this screen and
+    // already pads itself below the status bar.
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Hi, ${firstName.isEmpty ? 'there' : firstName}'),
-      ),
       body: ApiFutureView<Map<String, dynamic>>(
         future: _future,
         // Retry simply swaps in a fresh Future; FutureBuilder notices
@@ -78,73 +77,95 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           final exams = data['upcoming_exams'] as List<dynamic>? ?? [];
           final results = data['latest_results'] as List<dynamic>? ?? [];
 
+          // Attendance tint follows the number: green when high, amber
+          // when slipping, red when it needs a conversation at home.
+          final attendancePct = attendance['percent'] as num? ?? 0;
+          final attendanceColor = attendancePct >= 90
+              ? const Color(0xFF15803D)
+              : attendancePct >= 75
+                  ? const Color(0xFFB45309)
+                  : const Color(0xFFB91C1C);
+
           return RefreshIndicator(
             onRefresh: () async => setState(() => _future = _load()),
             child: ListView(
               // AlwaysScrollable so pull-to-refresh works even when the
-              // content is shorter than the screen.
+              // content is shorter than the screen. Zero padding so the
+              // hero gradient bleeds edge-to-edge.
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.zero,
               children: [
-                _greetingCard(context, student),
-                const SizedBox(height: 4),
-
-                // The four headline numbers. shrinkWrap + NeverScrollable
-                // because this grid lives INSIDE a ListView — the outer
-                // list does the scrolling, the grid just lays out tiles.
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.5,
-                  children: [
-                    StatCard(
-                      label: 'Attendance',
-                      value: '${attendance['percent'] ?? 0}%',
-                      icon: Icons.fact_check_outlined,
-                    ),
-                    StatCard(
-                      label: 'Fees due',
-                      value:
-                          '${session.currency}${_money(fees['total_due'] as num? ?? 0)}',
-                      icon: Icons.account_balance_wallet_outlined,
-                      color: const Color(0xFFB91C1C), // red = needs attention
-                    ),
-                    StatCard(
-                      label: 'Total paid',
-                      value:
-                          '${session.currency}${_money(fees['total_paid'] as num? ?? 0)}',
-                      icon: Icons.verified_outlined,
-                      color: const Color(0xFF15803D), // green = all good
-                    ),
-                    StatCard(
-                      label: 'Library loans',
-                      value: '${data['open_loans'] ?? 0}',
-                      icon: Icons.local_library_outlined,
-                      color: const Color(0xFF6D28D9),
-                    ),
-                  ],
+                // The signature composition: gradient banner with the
+                // student's identity, and the stat grid floating over
+                // its bottom edge.
+                HeroHeader.overlap(
+                  header: HeroHeader(
+                    caption: session.schoolName.toUpperCase(),
+                    title: 'Hi, ${firstName.isEmpty ? 'there' : firstName} 👋',
+                    subtitle:
+                        '${student['class_name'] ?? ''} — ${student['section'] ?? ''}'
+                        ' · Roll ${student['roll_number'] ?? '-'}',
+                  ),
+                  overlap: 30,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: StatGrid(cards: [
+                      StatCard(
+                        label: 'Attendance',
+                        value: '$attendancePct%',
+                        icon: Icons.fact_check_outlined,
+                        color: attendanceColor,
+                      ),
+                      StatCard(
+                        label: 'Fees due',
+                        value:
+                            '${session.currency}${_money(fees['total_due'] as num? ?? 0)}',
+                        icon: Icons.account_balance_wallet_outlined,
+                        color: const Color(0xFFB91C1C), // red = needs attention
+                      ),
+                      StatCard(
+                        label: 'Total paid',
+                        value:
+                            '${session.currency}${_money(fees['total_paid'] as num? ?? 0)}',
+                        icon: Icons.verified_outlined,
+                        color: const Color(0xFF15803D), // green = all good
+                      ),
+                      StatCard(
+                        label: 'Library loans',
+                        value: '${data['open_loans'] ?? 0}',
+                        icon: Icons.local_library_outlined,
+                        color: const Color(0xFF6D28D9),
+                      ),
+                    ]),
+                  ),
                 ),
 
-                const SectionHeader('Upcoming exams'),
-                if (exams.isEmpty)
-                  const EmptyState(
-                    icon: Icons.celebration_outlined,
-                    message: 'No exams coming up. Enjoy the calm!',
-                  )
-                else
-                  ...exams.map(
-                      (e) => _examCard(context, e as Map<String, dynamic>)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  child: Column(
+                    children: [
+                      const SectionHeader('Upcoming exams'),
+                      if (exams.isEmpty)
+                        const EmptyState(
+                          icon: Icons.celebration_outlined,
+                          message: 'No exams coming up. Enjoy the calm!',
+                        )
+                      else
+                        ...exams.map((e) =>
+                            _examCard(context, e as Map<String, dynamic>)),
 
-                const SectionHeader('Latest results'),
-                if (results.isEmpty)
-                  const EmptyState(
-                    icon: Icons.grade_outlined,
-                    message: 'No results published yet.',
-                  )
-                else
-                  ...results.map((r) =>
-                      _resultTile(context, r as Map<String, dynamic>, scheme)),
+                      const SectionHeader('Latest results'),
+                      if (results.isEmpty)
+                        const EmptyState(
+                          icon: Icons.grade_outlined,
+                          message: 'No results published yet.',
+                        )
+                      else
+                        ...results.map((r) =>
+                            _resultCard(context, r as Map<String, dynamic>)),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -153,133 +174,145 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  /// The "who am I" card at the top: avatar, name, class and status.
-  Widget _greetingCard(BuildContext context, Map<String, dynamic> student) {
-    final scheme = Theme.of(context).colorScheme;
-    final name = (student['full_name'] as String?) ?? '';
-    final status = (student['status'] as String?) ?? '';
+  /// One upcoming exam: a SoftCard row anchored by the subject's stable
+  /// colour. The shape matches the /student/exams rows, so we read the
+  /// same keys defensively (any missing key → fallback).
+  Widget _examCard(BuildContext context, Map<String, dynamic> exam) {
+    final subject = (exam['subject'] as String?) ?? '';
+    final status = (exam['status'] as String?) ?? '';
+    final tint = colorFor(subject.isEmpty ? 'Exam' : subject);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: scheme.primaryContainer,
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: TextStyle(
-                  fontSize: 22,
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          IconBadge(Icons.quiz_outlined, color: tint),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (exam['name'] as String?) ?? 'Exam',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (subject.isNotEmpty) subject,
+                    if (exam['term'] != null) '${exam['term']}',
+                    if (exam['duration'] != null) '${exam['duration']} min',
+                  ].join(' · '),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7686),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                (exam['scheduled_at'] as String?) ?? '',
+                style: const TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: scheme.onPrimaryContainer,
+                  fontSize: 12.5,
                 ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 16),
-                  ),
-                  Text(
-                    '${student['class_name'] ?? ''} — ${student['section'] ?? ''}'
-                    ' · Roll ${student['roll_number'] ?? '-'}',
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                  Text(
-                    'Admission no. ${student['admission_no'] ?? '-'}',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-            if (status.isNotEmpty) StatusChip(status),
-          ],
-        ),
+              if (status.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                StatusChip(status),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  /// One upcoming exam. The shape matches the /student/exams rows, so
-  /// we read the same keys defensively (any missing key → fallback).
-  Widget _examCard(BuildContext context, Map<String, dynamic> exam) {
-    final scheme = Theme.of(context).colorScheme;
-    final status = (exam['status'] as String?) ?? '';
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: scheme.secondaryContainer,
-          child: Icon(Icons.quiz_outlined, color: scheme.onSecondaryContainer),
-        ),
-        title: Text(
-          '${exam['name'] ?? 'Exam'} — ${exam['subject'] ?? ''}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text([
-          if (exam['term'] != null) '${exam['term']}',
-          if (exam['scheduled_at'] != null) '${exam['scheduled_at']}',
-          if (exam['duration'] != null) '${exam['duration']} min',
-        ].join(' · ')),
-        trailing: status.isNotEmpty ? StatusChip(status) : null,
-      ),
-    );
-  }
-
-  /// One published result: subject + exam on the left, a grade "chip"
-  /// (or an Absent pill) plus the raw marks on the right.
-  Widget _resultTile(BuildContext context, Map<String, dynamic> result,
-      ColorScheme scheme) {
+  /// One published result: subject + exam on the left, a big grade pill
+  /// (tinted in the subject's colour) plus the raw marks on the right.
+  Widget _resultCard(BuildContext context, Map<String, dynamic> result) {
+    final subject = (result['subject'] as String?) ?? 'Subject';
     final isAbsent = result['is_absent'] == true;
+    final tint = colorFor(subject);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        title: Text(
-          (result['subject'] as String?) ?? 'Subject',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text((result['exam'] as String?) ?? ''),
-        trailing: isAbsent
-            ? const StatusChip('absent')
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // The grade in a small tinted pill, like StatusChip
-                  // but themed with the school's primary colour.
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      (result['grade'] as String?) ?? '-',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: scheme.onPrimaryContainer,
-                      ),
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          IconBadge(Icons.workspace_premium_outlined, color: tint),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  subject,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  (result['exam'] as String?) ?? '',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7686),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Absent students have no marks to show — the chip says it all.
+          if (isAbsent)
+            const StatusChip('absent')
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // The grade is the headline — a big pill in the
+                // subject's colour, like StatusChip but louder.
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: tint.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    (result['grade'] as String?) ?? '-',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: tint,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${result['marks_obtained'] ?? '-'} / ${result['max_marks'] ?? '-'}',
-                    style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${result['marks_obtained'] ?? '-'} / ${result['max_marks'] ?? '-'}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7686),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+        ],
       ),
     );
   }

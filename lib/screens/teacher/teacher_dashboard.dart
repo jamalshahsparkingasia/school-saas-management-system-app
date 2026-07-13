@@ -8,6 +8,11 @@ import '../../widgets/common.dart';
 /// look like?": headline counts, today's periods, how attendance is
 /// shaping up, and any exams on the horizon.
 ///
+/// Like every dashboard it has NO AppBar: the gradient [HeroHeader] is
+/// the header, greeting the teacher and carrying their identity line
+/// (designation · subject · employee id), with the stat grid floating
+/// over the banner's bottom edge via [HeroHeader.overlap].
+///
 /// It is a [StatefulWidget] for one reason only: it must HOLD the
 /// [Future] returned by the API call. If we created the future inside
 /// `build`, every rebuild (a rotation, a theme change...) would fire a
@@ -49,12 +54,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Widget build(BuildContext context) {
     final session = context.watch<Session>();
     // The user's name is already in the Session (saved at login), so the
-    // AppBar can greet them instantly — no need to wait for the API.
-    final firstName =
-        session.userName.trim().isEmpty ? '' : session.userName.trim().split(' ').first;
+    // hero can greet them instantly — no need to wait for the API.
+    final firstName = session.userName.trim().isEmpty
+        ? ''
+        : session.userName.trim().split(' ').first;
 
     return Scaffold(
-      appBar: AppBar(title: Text(firstName.isEmpty ? 'Home' : 'Hi, $firstName')),
       body: ApiFutureView<Map<String, dynamic>>(
         future: _future,
         // Retry simply swaps in a fresh future; FutureBuilder notices
@@ -70,102 +75,121 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               data['today_attendance'] as Map<String, dynamic>? ?? {};
           final exams = data['upcoming_exams'] as List<dynamic>? ?? [];
 
+          // Identity line for the hero subtitle, built from whichever
+          // bits the API sent and glued with a middle dot.
+          final details = <String>[
+            if (teacher['designation'] != null) '${teacher['designation']}',
+            if (teacher['subject'] != null) '${teacher['subject']}',
+            if (teacher['employee_id'] != null) 'ID ${teacher['employee_id']}',
+          ].join(' · ');
+
           return RefreshIndicator(
             // Pull-to-refresh reuses the exact same trick as onRetry.
             onRefresh: () async => setState(() => _future = _load()),
             child: ListView(
               // AlwaysScrollable lets you pull-to-refresh even when the
-              // content is shorter than the screen.
+              // content is shorter than the screen; zero padding lets the
+              // hero gradient run edge-to-edge under the status bar.
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.zero,
               children: [
-                _teacherCard(context, teacher),
-                const SizedBox(height: 4),
+                HeroHeader.overlap(
+                  overlap: 30,
+                  header: HeroHeader(
+                    caption: session.schoolName.toUpperCase(),
+                    title: firstName.isEmpty ? 'Hi 👋' : 'Hi, $firstName 👋',
+                    subtitle: details.isEmpty ? null : details,
+                  ),
+                  // Everything below rides 30px up so the stat grid
+                  // floats over the banner's bottom edge.
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Headline numbers — the shared fixed-height grid.
+                        StatGrid(cards: [
+                          StatCard(
+                            label: 'Students',
+                            value: '${counts['students'] ?? 0}',
+                            icon: Icons.groups_rounded,
+                            color: const Color(0xFF0EA5E9),
+                          ),
+                          StatCard(
+                            label: 'Classes',
+                            value: '${counts['classes'] ?? 0}',
+                            icon: Icons.school_rounded,
+                            color: const Color(0xFF8B5CF6),
+                          ),
+                          StatCard(
+                            label: 'Subjects',
+                            value: '${counts['subjects'] ?? 0}',
+                            icon: Icons.menu_book_rounded,
+                            color: const Color(0xFF10B981),
+                          ),
+                          StatCard(
+                            label: 'Sections',
+                            value: '${counts['sections'] ?? 0}',
+                            icon: Icons.grid_view_rounded,
+                            color: const Color(0xFFF59E0B),
+                          ),
+                        ]),
 
-                // Headline numbers. shrinkWrap + NeverScrollable turn the
-                // grid into a plain block inside the outer ListView (two
-                // nested scrollables would fight over drag gestures).
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  childAspectRatio: 1.5,
-                  children: [
-                    StatCard(
-                      label: 'Students',
-                      value: '${counts['students'] ?? 0}',
-                      icon: Icons.groups_rounded,
-                    ),
-                    StatCard(
-                      label: 'Classes',
-                      value: '${counts['classes'] ?? 0}',
-                      icon: Icons.school_rounded,
-                      color: const Color(0xFF0369A1),
-                    ),
-                    StatCard(
-                      label: 'Subjects',
-                      value: '${counts['subjects'] ?? 0}',
-                      icon: Icons.menu_book_rounded,
-                      color: const Color(0xFF15803D),
-                    ),
-                    StatCard(
-                      label: 'Sections',
-                      value: '${counts['sections'] ?? 0}',
-                      icon: Icons.grid_view_rounded,
-                      color: const Color(0xFFB45309),
-                    ),
-                  ],
-                ),
+                        const SectionHeader("Today's classes"),
+                        if (periods.isEmpty)
+                          const EmptyState(
+                            icon: Icons.free_breakfast_outlined,
+                            message: 'No classes today.',
+                          )
+                        else
+                          ...periods.map((p) =>
+                              _periodRow(context, p as Map<String, dynamic>)),
 
-                const SectionHeader("Today's classes"),
-                if (periods.isEmpty)
-                  const EmptyState(
-                    icon: Icons.free_breakfast_outlined,
-                    message: 'No classes today.',
-                  )
-                else
-                  ...periods.map((p) => _periodTile(context, p as Map<String, dynamic>)),
-
-                // Only show the attendance summary when the API actually
-                // sent some counts — an empty map means "nothing marked yet".
-                if (attendance.isNotEmpty) ...[
-                  const SectionHeader("Today's attendance"),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Wrap(
-                        spacing: 14,
-                        runSpacing: 10,
-                        children: [
-                          for (final entry in attendance.entries)
-                            // "[present] 10" — the coloured pill comes from
-                            // the shared StatusChip so colours stay
-                            // consistent with every other screen.
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
+                        // Only show the attendance summary when the API
+                        // actually sent some counts — an empty map means
+                        // "nothing marked yet".
+                        if (attendance.isNotEmpty) ...[
+                          const SectionHeader("Today's attendance"),
+                          SoftCard(
+                            child: Wrap(
+                              spacing: 14,
+                              runSpacing: 10,
                               children: [
-                                StatusChip(entry.key),
-                                const SizedBox(width: 5),
-                                Text(
-                                  '${entry.value}',
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
-                                ),
+                                for (final entry in attendance.entries)
+                                  // "[present] 10" — the coloured pill
+                                  // comes from the shared StatusChip so
+                                  // colours stay consistent with every
+                                  // other screen.
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      StatusChip(entry.key),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${entry.value}',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800),
+                                      ),
+                                    ],
+                                  ),
                               ],
                             ),
+                          ),
                         ],
-                      ),
+
+                        const SectionHeader('Upcoming exams'),
+                        if (exams.isEmpty)
+                          const EmptyState(
+                            icon: Icons.quiz_outlined,
+                            message: 'No upcoming exams.',
+                          )
+                        else
+                          ...exams.map((e) =>
+                              _examRow(context, e as Map<String, dynamic>)),
+                      ],
                     ),
                   ),
-                ],
-
-                const SectionHeader('Upcoming exams'),
-                if (exams.isEmpty)
-                  const EmptyState(
-                    icon: Icons.quiz_outlined,
-                    message: 'No upcoming exams.',
-                  )
-                else
-                  ...exams.map((e) => _examTile(context, e as Map<String, dynamic>)),
+                ),
               ],
             ),
           );
@@ -174,87 +198,161 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  /// Who am I? — small identity card so the teacher knows the app is
-  /// looking at the right profile (handy in schools with shared devices).
-  Widget _teacherCard(BuildContext context, Map<String, dynamic> teacher) {
-    final scheme = Theme.of(context).colorScheme;
+  /// One period of today's schedule, drawn exactly like the timetable
+  /// timeline (time column on the left, colour-spined card on the right)
+  /// so the two screens feel like the same app.
+  Widget _periodRow(BuildContext context, Map<String, dynamic> period) {
+    final subject = (period['subject'] as String?) ?? 'Class';
+    final tint = colorFor(subject); // same colour on every screen
 
-    // Build the subtitle from whichever bits the API sent, skipping the
-    // missing ones, and glue them with a middle dot.
-    final details = <String>[
-      if (teacher['designation'] != null) '${teacher['designation']}',
-      if (teacher['subject'] != null) '${teacher['subject']}',
-      if (teacher['employee_id'] != null) 'ID ${teacher['employee_id']}',
-    ].join(' · ');
-
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          child: Icon(Icons.co_present_rounded, color: scheme.onPrimaryContainer),
-        ),
-        title: Text(
-          (teacher['full_name'] as String?) ?? 'Teacher',
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        subtitle: details.isEmpty ? null : Text(details),
-      ),
-    );
-  }
-
-  /// One period of today's schedule — same look as the timetable screen
-  /// so the two feel like the same app.
-  Widget _periodTile(BuildContext context, Map<String, dynamic> period) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: scheme.primaryContainer,
-          child: Text(
-            '${period['period'] ?? ''}',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: scheme.onPrimaryContainer,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Time column.
+          SizedBox(
+            width: 52,
+            child: Column(
+              children: [
+                Text(
+                  '${period['start'] ?? ''}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  '${period['end'] ?? ''}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFF8A94A6),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        title: Text(
-          (period['subject'] as String?) ?? 'Class',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text([
-          if (period['section'] != null) '${period['section']}',
-          if (period['room'] != null) 'Room ${period['room']}',
-        ].join(' · ')),
-        trailing: Text(
-          '${period['start'] ?? ''}\n${period['end'] ?? ''}',
-          textAlign: TextAlign.right,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+          const SizedBox(width: 10),
+
+          // Subject card with a colour spine and a "P3" period pill.
+          Expanded(
+            child: SoftCard(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: tint,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          subject,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          [
+                            if (period['section'] != null)
+                              '${period['section']}',
+                            if (period['room'] != null)
+                              'Room ${period['room']}',
+                          ].join(' · '),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF6B7686),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: tint.withValues(alpha: .1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'P${period['period']}',
+                      style: TextStyle(
+                        color: tint,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _examTile(BuildContext context, Map<String, dynamic> exam) {
-    final scheme = Theme.of(context).colorScheme;
+  /// One upcoming exam — icon badge tinted by subject, date on the right.
+  Widget _examRow(BuildContext context, Map<String, dynamic> exam) {
+    final subject = (exam['subject'] as String?) ?? '';
+    final tint = colorFor(subject.isEmpty
+        ? (exam['name'] as String?) ?? 'Exam'
+        : subject);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        leading: Icon(Icons.quiz_rounded, color: scheme.primary),
-        title: Text(
-          (exam['name'] as String?) ?? 'Exam',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text((exam['subject'] as String?) ?? ''),
-        // Dates come from the API as ready-to-show strings — display
-        // them as-is rather than re-parsing (no date library needed).
-        trailing: Text(
-          '${exam['scheduled_at'] ?? ''}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+    return SoftCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          IconBadge(Icons.quiz_rounded, color: tint),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (exam['name'] as String?) ?? 'Exam',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
+                ),
+                if (subject.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subject,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6B7686),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          // Dates come from the API as ready-to-show strings — display
+          // them as-is rather than re-parsing (no date library needed).
+          Text(
+            '${exam['scheduled_at'] ?? ''}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF6B7686),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

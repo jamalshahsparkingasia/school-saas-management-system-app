@@ -202,48 +202,52 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
           return Column(
             children: [
               // ---- controls: which register, which day ----
+              // Both pickers share ONE floating card so they read as a
+              // single "what am I marking?" control block.
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Column(
-                  children: [
-                    DropdownButtonFormField<int>(
-                      initialValue: _sectionId,
-                      decoration: const InputDecoration(
-                        labelText: 'Class & section',
-                        prefixIcon: Icon(Icons.groups_rounded),
-                      ),
-                      hint: const Text('Pick a class & section'),
-                      items: [
-                        for (final s in sections)
-                          DropdownMenuItem(
-                            value: ((s as Map<String, dynamic>)['id'] as num?)
-                                ?.toInt(),
-                            child: Text((s['label'] as String?) ?? 'Section'),
-                          ),
-                      ],
-                      onChanged: (id) => setState(() {
-                        _sectionId = id;
-                        if (id != null) _reloadRoster();
-                      }),
-                    ),
-                    const SizedBox(height: 10),
-                    // The date "field" is really just a display + button:
-                    // tapping anywhere on it opens the calendar.
-                    InkWell(
-                      onTap: _pickDate,
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: 'Date',
-                          prefixIcon: const Icon(Icons.today_rounded),
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.edit_calendar_rounded),
-                            onPressed: _pickDate,
-                          ),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: SoftCard(
+                  child: Column(
+                    children: [
+                      DropdownButtonFormField<int>(
+                        initialValue: _sectionId,
+                        decoration: const InputDecoration(
+                          labelText: 'Class & section',
+                          prefixIcon: Icon(Icons.groups_rounded),
                         ),
-                        child: Text(_dateString),
+                        hint: const Text('Pick a class & section'),
+                        items: [
+                          for (final s in sections)
+                            DropdownMenuItem(
+                              value: ((s as Map<String, dynamic>)['id'] as num?)
+                                  ?.toInt(),
+                              child: Text((s['label'] as String?) ?? 'Section'),
+                            ),
+                        ],
+                        onChanged: (id) => setState(() {
+                          _sectionId = id;
+                          if (id != null) _reloadRoster();
+                        }),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      // The date "field" is really just a display + button:
+                      // tapping anywhere on it opens the calendar.
+                      InkWell(
+                        onTap: _pickDate,
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: 'Date',
+                            prefixIcon: const Icon(Icons.today_rounded),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.edit_calendar_rounded),
+                              onPressed: _pickDate,
+                            ),
+                          ),
+                          child: Text(_dateString),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -273,7 +277,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                                 () => _rosterFuture = _loadRoster()),
                             child: ListView.builder(
                               physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                               itemCount: students.length,
                               itemBuilder: (context, i) => _studentTile(
                                   context, students[i] as Map<String, dynamic>),
@@ -288,101 +292,111 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
       ),
 
       // The save button lives in bottomNavigationBar so it is ALWAYS
-      // visible — no scrolling to the bottom of a 30-student list.
+      // visible — no scrolling to the bottom of a 30-student list. The
+      // white bar with a soft shadow lifts it off the scrolling list;
       // SafeArea keeps it clear of home indicators on modern phones.
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: FilledButton(
-          // Disabled while saving (prevents double-taps → duplicate
-          // POSTs) and until a roster with students is on screen.
-          onPressed: (_saving || _students.isEmpty) ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                )
-              : const Text('Save attendance'),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: softShadow(context),
+        ),
+        child: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          child: FilledButton(
+            // Disabled while saving (prevents double-taps → duplicate
+            // POSTs) and until a roster with students is on screen.
+            onPressed: (_saving || _students.isEmpty) ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                : const Text('Save attendance'),
+          ),
         ),
       ),
     );
   }
 
-  /// One row of the register: name + roll number, then a segmented
-  /// control with the four statuses.
+  /// One floating card of the register: name + roll number, then a
+  /// segmented control with the four statuses.
   Widget _studentTile(BuildContext context, Map<String, dynamic> student) {
-    final scheme = Theme.of(context).colorScheme;
     final key = '${student['student_id']}';
     final notes = student['notes'] as String?;
 
-    return Card(
+    return SoftCard(
       margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    (student['full_name'] as String?) ?? 'Student',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                Text(
-                  'Roll ${student['roll_number'] ?? '—'}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              // Stretch so the four segments share the row evenly.
-              width: double.infinity,
-              child: SegmentedButton<String>(
-                segments: [
-                  for (final option in _statusOptions)
-                    ButtonSegment(
-                      value: option,
-                      // 'present' → 'Present' — tiny inline capitalise.
-                      label: Text(
-                          '${option[0].toUpperCase()}${option.substring(1)}'),
-                    ),
-                ],
-                // SegmentedButton works with a SET of selections; ours is
-                // always exactly one status per student.
-                selected: {_statuses[key] ?? 'present'},
-                onSelectionChanged: (selection) =>
-                    setState(() => _statuses[key] = selection.first),
-                showSelectedIcon: false,
-                // Compact styling so four labels fit on a phone screen.
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity(horizontal: -3, vertical: -3),
-                  textStyle: WidgetStatePropertyAll(
-                    TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                  padding: WidgetStatePropertyAll(
-                    EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  (student['full_name'] as String?) ?? 'Student',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
                   ),
                 ),
               ),
-            ),
-            if (notes != null && notes.isNotEmpty) ...[
-              const SizedBox(height: 8),
               Text(
-                notes,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: scheme.onSurfaceVariant),
+                'Roll ${student['roll_number'] ?? '—'}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF6B7686),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            // Stretch so the four segments share the row evenly.
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              segments: [
+                for (final option in _statusOptions)
+                  ButtonSegment(
+                    value: option,
+                    // 'present' → 'Present' — tiny inline capitalise.
+                    label: Text(
+                        '${option[0].toUpperCase()}${option.substring(1)}'),
+                  ),
+              ],
+              // SegmentedButton works with a SET of selections; ours is
+              // always exactly one status per student.
+              selected: {_statuses[key] ?? 'present'},
+              onSelectionChanged: (selection) =>
+                  setState(() => _statuses[key] = selection.first),
+              showSelectedIcon: false,
+              // Compact styling so four labels fit on a phone screen.
+              style: const ButtonStyle(
+                visualDensity: VisualDensity(horizontal: -3, vertical: -3),
+                textStyle: WidgetStatePropertyAll(
+                  TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                padding: WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 6),
+                ),
+              ),
+            ),
+          ),
+          if (notes != null && notes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              notes,
+              style: const TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF6B7686),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
